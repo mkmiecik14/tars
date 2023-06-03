@@ -40,11 +40,20 @@ for i = 1:num_iters
             disp('No bad channels detected...')
     end
     
+    % Extracts resting state blocks ----
+    EEG = pop_rmdat( EEG, {'102'},[0 60] ,0);
+    
+    
     % ICA decomposition ----
     % computes rank from EEG.nbchan( == 30) - n (interpolated chans)
-    this_rank = EEG.nbchan - length(interpchans);
-    EEG = pop_runica(EEG, 'icatype', 'runica',...
-        'extended', 1, 'interrupt', 'on', 'pca', this_rank);
+    this_rank = EEG.nbchan - 1 - length(interpchans); % minus 1 due to ref
+    EEG = pop_runica(...
+        EEG,...
+        'icatype', 'runica',... 
+        'extended',1,...
+        'interrupt','on',...
+        'pca',this_rank...
+    );
     
     % renames dataset
     dataset_name = strcat('rs-', visit_name, '-', num2str(this_ss), '-ica');
