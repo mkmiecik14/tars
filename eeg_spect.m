@@ -7,7 +7,7 @@ workspace_prep % Prepares workspace
 % Preallocation ----
 num_iters = size(NUM, 1);       % number of participants in this batch
 i=1;                            % for testing purposes
-csd_switch = 1;                 % 1 == CSD will be computed
+csd_switch = 0;                 % 1 == CSD will be computed
 plot_switch = 1;                % 1 == PSD plots will be saved
 noise_plot_switch = 1;          % 1 == Pink&White Noise plots saved
 
@@ -27,9 +27,8 @@ poly = 5;           % SGF polynomial order (same as described in Corcoran et al.
 for i = 1:num_iters
     
     % Creating variables ----
-    visit_name = strcat('av', visit(end)); % grabs visit number
     this_ss = NUM(i);
-    this_ss_path = dir(fullfile(outpath, strcat('rs-', visit_name, '-', num2str(this_ss), '-ica.set')));
+    this_ss_path = dir(fullfile(output_dir, strcat(num2str(this_ss), '-ica.set')));
     this_ss_name = this_ss_path.name;
         
     % Loads in data using EEGLAB ----
@@ -49,7 +48,6 @@ for i = 1:num_iters
     
     % Removes artifactual ICs
     this_reject = find(EEG.reject.gcompreject);
-    %this_reject = [2; this_reject]; % only for participant 308 visit 1
     EEG = pop_subcomp(EEG, this_reject, 0);
     
     eeglab redraw    
@@ -81,8 +79,8 @@ for i = 1:num_iters
     
     % Epoching
     % selecting the stimulation blocks (60 second epochs)
-    blocks = {'S111' 'S102' 'S103' 'S114' 'S105' 'S116' 'S117' 'S108'};
-    blocks_end = {'S211' 'S202' 'S203' 'S214' 'S205' 'S216' 'S217' 'S208'};
+    blocks = {'101','106','111','116'};
+    %blocks_end = {'S211' 'S202' 'S203' 'S214' 'S205' 'S216' 'S217' 'S208'};
     
     % preallocates arrays
     N = EEG.srate*wsize; % number of data points in FFT window
@@ -102,23 +100,23 @@ for i = 1:num_iters
     % starting trigger (e.g., S111) and its ending e.g., (S211)
     
     % Getting start and stop latencies of the stimulation blocks
-    start_times = NaN(1, length(blocks)); % initializes vector
-    end_times = start_times; % initializes vector
-    for k = 1:length(blocks)
-        % Retrieving the latency (in seconds) of each block start
-        start_times(1,k) = (eeg_getepochevent(EEG, blocks(k), [], 'latency'))/1000;
-        % Retrieving the latency (in seconds) of each block end
-        end_times(1,k) = (eeg_getepochevent(EEG, blocks_end(k), [], 'latency'))/1000;
-    end
+%     start_times = NaN(1, length(blocks)); % initializes vector
+%     end_times = start_times; % initializes vector
+%     for k = 1:length(blocks)
+%         % Retrieving the latency (in seconds) of each block start
+%         start_times(1,k) = (eeg_getepochevent(EEG, blocks(k), [], 'latency'))/1000;
+%         % Retrieving the latency (in seconds) of each block end
+%         end_times(1,k) = (eeg_getepochevent(EEG, blocks_end(k), [], 'latency'))/1000;
+%     end
     
     % Calculates the duration of each block (in order)
-    block_durations = round(end_times - start_times);
+    %block_durations = round(end_times - start_times);
     
-    %j=1; % for testing purposes
+    j=1; % for testing purposes
     
     for j = 1:length(blocks)
         
-        this_epoch = [0 block_durations(j)]; % Sets the epoch duration
+        this_epoch = [0 60]; % Sets the epoch duration
         
         try % This will run if the block exists
             % Selects blocks (in order)
@@ -167,8 +165,8 @@ for i = 1:num_iters
                 figure("Visible","off");
                 pop_spectopo(this_EEG,1,[],'EEG','freq',[4 8 12 25 30],'freqrange',[0 75],'electrodes','on');
                 saveas(gcf,...
-                    fullfile(outpath,...
-                    strcat('rs-', visit_name, '-', num2str(this_ss),...
+                    fullfile(output_dir,...
+                    strcat(num2str(this_ss),...
                     '-',blocks{j},'.png')));
                 close; % closes figure
             else
@@ -209,7 +207,7 @@ for i = 1:num_iters
     [iterations, PN, PN_slope, WN, n_sols, adjust_value, error_value, FL_chan] = ...
             PaWNextra(this_spectra_psd_t,... % broadband spectra freqs x chans x participants)
             freq_vector,... % column vector of freq bins
-            -.001,... % error threshold (E=-.001 is the default)
+            -.1,... % error threshold (E=-.001 is the default)
             1000); % iterations (I believe this is the default)
     
     % Subtracting pink and white noise from broadband spectra
@@ -222,8 +220,8 @@ for i = 1:num_iters
         if noise_plot_switch == 1
             figure("Visible", "off"); % plots the inital, pink, and observed spectra
             axes('FontSize', 6)
-            t=tiledlayout(5,6,'TileSpacing','compact');
-            for m=1:30
+            t=tiledlayout(8,8,'TileSpacing','compact');
+            for m=1:EEG.nbchan % was 30
                 nexttile
                 % Initial spectra
                 plot(freq_vector, this_spectra_psd_t(:,m,slice), 'Color', [.7 .7 .7])
@@ -233,16 +231,16 @@ for i = 1:num_iters
                 hold on
                 % Observed spectra
                 plot(freq_vector, this_corrected(:,m,slice)', '-k')
-                axis([0 25 0 Inf])
+                axis([0 15 0 Inf])
                 title(EEG.chanlocs(m).labels,'FontSize',6)
             end
-            title(t, strcat("Block-", num2str(slice)))
+            title(t, strcat("Portcode", blocks{slice}))
             xlabel(t, 'Hz')
-            ylabel(t, 'PSD [(uV/cm^2)^2/Hz]') % after surface Laplacian, this is (uV/cm^2)^2/Hz (sort of like PSD)
-            plot_name = strcat('rs-', visit_name, '-', num2str(this_ss),...
-                    '-','block-',num2str(slice),'-pink.pdf');
+            ylabel(t, 'PSD [uV^2/Hz]') % after surface Laplacian, this is (uV/cm^2)^2/Hz (sort of like PSD)
+            plot_name = strcat(num2str(this_ss),...
+                    '-',blocks{slice},'-pink.pdf');
             set(gcf,'units','inches','Position',[2, 2, 8, 6])
-            exportgraphics(gcf,fullfile(outpath, plot_name),'ContentType','vector');
+            exportgraphics(gcf,fullfile(output_dir, plot_name),'ContentType','vector');
             close; % closes figure down
         else
             % Figure is not drawn/saved
@@ -253,14 +251,10 @@ for i = 1:num_iters
     % combines into one variable
     % stimulation results are stored with each index being the
     % blocks in the following order:
-    % 'S111' - eyes OPEN
-    % 'S102' - eyes CLOSED
-    % 'S103' - eyes CLOSED
-    % 'S114' - eyes OPEN
-    % 'S105' - eyes CLOSED
-    % 'S116' - eyes OPEN
-    % 'S117' - eyes OPEN
-    % 'S108' - eyes CLOSED
+    % 101 - eyes open before stim
+    % 106 - eyes open after stim
+    % 111 - eyes closed before stim
+    % 116 - eyes closed after stim
     spec_res.spectra   = this_spectra; % 3D mat of spectra (in dB)
     spec_res.freqs     = this_freqs;   % 3D mat of freqs bins
     spec_res.paf       = this_paf;     % 2D mat of PAF per chan per block
@@ -271,7 +265,6 @@ for i = 1:num_iters
     spec_res.freqvec   = freq_vector; % frequency vector used for Pink&White noise calc
 
     % Saving out all data ----
-    spec_outname = strcat('rs-', visit_name, '-', num2str(this_ss),...
-                    '-spec-res.mat');
-    save(fullfile(outpath, spec_outname),'spec_res'); % saves out as matlab struct
+    spec_outname = strcat(num2str(this_ss), '-spec-res.mat');
+    save(fullfile(output_dir, spec_outname), 'spec_res'); % saves out as matlab struct
 end

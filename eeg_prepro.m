@@ -21,25 +21,46 @@ for i = 1:length(ss)
     EEG = pop_biosig(...
         fullfile(this_ss_path.folder, this_ss_name),...
         'ref',[1] ,...
-        'refoptions',{'keepref','on'}...
+        'refoptions',{'keepref','on'},...
+        'importannot', 'off',... % does not import EDF annotations
+        'bdfeventmode', 6 ... % this event mode syncs nicely with EMSE events
         );
     
+    % Checks to see if an outside event file exists 
+    % (i.e., if sections of the EEG were rejected due to noise)
+    this_events = strcat(num2str(this_ss), '-events.csv');
+    if isfile(fullfile(data_dir, this_events))
+     % File exists...load in the visually inspected and rejected file
+     % Loads in raw data using EEGLAB ----
+     disp('Using imported events...');
+    events = readtable(fullfile(data_dir, this_events));
+    events.latency = events.latency + 1; % add 1 as EMSE starts at 0
+    EEG.event = table2struct(events); % inserts outside events
+    else
+     % File does not exist...load standard file
+    % Loads in raw data using EEGLAB ----
+    disp('Using embedded events...');
+    end
     
     % Remove externals that are not being used ----
-    EEG = pop_select( EEG, 'rmchannel',{'EXG3','EXG4','EXG5','EXG6','EXG7','EXG8'});
+    EEG = pop_select(...
+        EEG,...
+        'rmchannel',{'EXG1', 'EXG2', 'EXG3','EXG4','EXG5','EXG6','EXG7','EXG8'}...
+        );
     
     % Configuring channel locations ----
     % loads in ELP
     eloc = readlocs( this_elp ); % reads in elp chan locations
-    EEG.chanlocs = eloc(4:69); % adds these except for fiducials
+    EEG.chanlocs = eloc(4:67); % adds these except for fiducials
     % sets A1 as ref because it was chosen upon import
-    EEG = pop_chanedit(EEG, 'setref', {'1:66' 'A1'}); 
+    EEG = pop_chanedit(EEG, 'setref', {'1:64' 'A1'}); 
     
     % Downsamples to 256Hz ----
     EEG = pop_resample(EEG, 256);
     
-    % Re-references data to linked mastoids
-    EEG = pop_reref( EEG, [24 61] ,'keepref','on');
+    % Re-references data to 
+    %EEG = pop_reref( EEG, [24 61] ,'keepref','on'); % linked mastoids
+    EEG = pop_reref( EEG, []); % common average reference
     
     % Removing DC offset by subtracting the mean signal from each electrode
     EEG = pop_rmbase(EEG, [], []);

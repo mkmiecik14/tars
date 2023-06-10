@@ -41,12 +41,13 @@ for i = 1:num_iters
     end
     
     % Extracts resting state blocks ----
-    EEG = pop_rmdat( EEG, {'102'},[0 60] ,0);
-    
+    EEG = pop_rmdat( EEG, {'101','106','111','116'},[-1 61] ,0);
     
     % ICA decomposition ----
     % computes rank from EEG.nbchan( == 30) - n (interpolated chans)
-    this_rank = EEG.nbchan - 1 - length(interpchans); % minus 1 due to ref
+    % minus 1 due to linked mastoids
+    %this_rank = EEG.nbchan - 1 - length(interpchans); 
+    this_rank = EEG.nbchan - length(interpchans); % for use w/ common avg.
     EEG = pop_runica(...
         EEG,...
         'icatype', 'runica',... 
@@ -56,12 +57,12 @@ for i = 1:num_iters
     );
     
     % renames dataset
-    dataset_name = strcat('rs-', visit_name, '-', num2str(this_ss), '-ica');
+    dataset_name = strcat(num2str(this_ss), '-ica');
     EEG = pop_editset(EEG, 'setname', dataset_name, 'run', []);
     
     % Saves out data
     outname = strcat(dataset_name, '.set'); % save out subject name
-    EEG = pop_saveset(EEG, 'filename', outname, 'filepath', outpath);
+    EEG = pop_saveset(EEG, 'filename', outname, 'filepath', output_dir);
     
 end
 
